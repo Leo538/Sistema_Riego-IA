@@ -24,7 +24,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .fuzzy_system import curvas_membresia_para_grafico, parametros_originales_temperatura_media_texto
+from .fuzzy.sistema import curvas_membresia_para_grafico, parametros_originales_temperatura_media_texto
 
 COLOR_BAJA = "#1f77b4"
 COLOR_MEDIA = "#2ca02c"

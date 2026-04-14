@@ -13,7 +13,7 @@ import numpy as np
 import streamlit as st
 from matplotlib.patches import Rectangle
 
-from logica.fuzzy_system import calcular_riego
+from logica.fuzzy.sistema import calcular_riego
 
 
 def _map_tipo(ui_val: str) -> str:
@@ -180,7 +180,7 @@ def _mostrar_alerta(tipo: str, texto: str) -> None:
 
 
 def _mapa_condiciones(temp: float, humedad: float) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(7.2, 5.4), facecolor="white")
+    fig, ax = plt.subplots(figsize=(6.0, 4.2), facecolor="white")
     ax.set_facecolor("#fafafa")
     # Estrés: todo el rectángulo
     ax.add_patch(Rectangle((0, 0), 50, 100, facecolor="#ffcccc", edgecolor="none", zorder=1, label="_stress"))
@@ -261,7 +261,17 @@ def render_cultivo_mora() -> None:
     riego_txt = _indicador_riego_html(agua)
 
     escena = f"""
-<div style="
+<style>
+#mora-escena .valor-temp,
+#mora-escena .valor-hum,
+#mora-escena .valor-riego,
+#mora-escena .indicador-riego {{
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1 !important;
+}}
+</style>
+<div id="mora-escena" style="
   min-height: 250px;
   border-radius: 16px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.12);
@@ -273,19 +283,19 @@ def render_cultivo_mora() -> None:
   color: #000000 !important;
 ">
   <div style="text-align:center;font-size:1.05rem;margin-bottom:8px;font-weight:600;color:#000000 !important;">
-    {riego_txt}
+    <span class="indicador-riego" style="font-weight:700;">{riego_txt}</span>
   </div>
-  <div style="position:absolute;top:12px;left:16px;font-size:1rem;background:rgba(255,255,255,0.85);padding:6px 10px;border-radius:8px;color:#000000 !important;">
-    🌡️ {temp:.1f}°C
+  <div style="position:absolute;top:12px;left:16px;font-size:1rem;background:rgba(255,255,255,0.85);padding:6px 10px;border-radius:8px;">
+    🌡️ <span class="valor-temp" style="font-weight:800;">{temp:.1f}°C</span>
   </div>
-  <div style="position:absolute;top:12px;right:16px;font-size:1rem;background:rgba(255,255,255,0.85);padding:6px 10px;border-radius:8px;color:#000000 !important;">
-    💧 {humedad:.0f}%
+  <div style="position:absolute;top:12px;right:16px;font-size:1rem;background:rgba(255,255,255,0.85);padding:6px 10px;border-radius:8px;">
+    💧 <span class="valor-hum" style="font-weight:800;">{humedad:.0f}%</span>
   </div>
   <div style="text-align:center;padding-top:36px;padding-bottom:8px;font-size:2.4rem;line-height:1.35;">
     {planta}
   </div>
-  <div style="text-align:center;margin-top:12px;font-size:1.1rem;font-weight:600;color:#000000 !important;">
-    🚿 {agua:.2f} L recomendados
+  <div style="text-align:center;margin-top:12px;font-size:1.1rem;font-weight:700;">
+    🚿 <span class="valor-riego" style="font-weight:800;">{agua:.2f} L recomendados</span>
   </div>
 </div>
 """
@@ -334,19 +344,3 @@ def render_cultivo_mora() -> None:
     fig_m = _mapa_condiciones(temp, humedad)
     st.pyplot(fig_m, clear_figure=True)
     plt.close(fig_m)
-
-    st.divider()
-
-    # —— SECCIÓN 5: tabla ——
-    st.subheader("Tabla de referencia del cultivo")
-    st.markdown(
-        """
-| Parámetro | Óptimo | Límite tolerable |
-| :--- | :--- | :--- |
-| Temperatura | 15°C – 25°C | 10°C – 35°C |
-| Humedad del suelo | 60% – 80% | 40% – 85% |
-| Riego diario | 2L – 4L | hasta 8L en estrés |
-| pH del suelo | 5.5 – 6.5 | valor de referencia |
-| Altitud ideal | 1800 – 2800 msnm | cultivo andino |
-"""
-    )

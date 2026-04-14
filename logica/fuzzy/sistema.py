@@ -1,32 +1,30 @@
-"""
-Sistema de inferencia difusa (Mamdani) para recomendación de riego.
-Usa scikit-fuzzy; admite parámetros por defecto o un vector de 18 genes (temp + humedad).
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import skfuzzy as fuzz
+
+from .inferencia import (
+    _activaciones_reglas,
+    _inferencia_mamdani_centroide,
+    _membresia_en_punto,
+    _nivel_linguistico,
+)
+from .membresia import (
+    _ordenar_trap,
+    _ordenar_tri,
+    mf_humedad_arrays,
+    mf_riego_default_arrays,
+    mf_temperatura_arrays,
+)
 
 
-# Universos (resolución adecuada para centroide estable)
 _X_TEMP = np.linspace(0, 50, 251)
 _X_HUM = np.linspace(0, 100, 501)
 _X_RIEGO = np.linspace(0, 10, 501)
 
 _TEMP_MAX = 50.0
 _HUM_MAX = 100.0
-
-
-def _ordenar_trap(a: float, b: float, c: float, d: float) -> List[float]:
-    pts = sorted([float(a), float(b), float(c), float(d)])
-    return pts
-
-
-def _ordenar_tri(a: float, b: float, c: float) -> List[float]:
-    return sorted([float(a), float(b), float(c)])
 
 
 def _desempaquetar_genes(parametros: Optional[np.ndarray]) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -39,9 +37,6 @@ def _desempaquetar_genes(parametros: Optional[np.ndarray]) -> Tuple[Optional[np.
 
 
 def _desc_temperatura(tipo_funcion: str, g: Optional[np.ndarray]) -> Dict[str, Any]:
-    """
-    Genes temp (9): [baja a,b,c,d](4), [media centro, sigma](2), [alta a,b,c](3) con d=50.
-    """
     if g is None:
         baja = [0.0, 0.0, 10.0, 25.0]
         centro, sigma = 25.0, 8.0
@@ -76,7 +71,6 @@ def _desc_temperatura(tipo_funcion: str, g: Optional[np.ndarray]) -> Dict[str, A
 
 
 def _formato_num_tabla(x: float) -> str:
-    """Entero si aplica; si no, un decimal (para textos de tablas UI/PDF)."""
     xf = float(x)
     if abs(xf - round(xf)) < 1e-9:
         return str(int(round(xf)))
@@ -84,10 +78,6 @@ def _formato_num_tabla(x: float) -> str:
 
 
 def parametros_originales_temperatura_media_texto(tipo_funcion: str) -> Tuple[str, str]:
-    """
-    (Forma, parámetros originales) para la fila «Media» en tablas de membresía,
-    coherente con _desc_temperatura(..., genes=None).
-    """
     desc = _desc_temperatura(str(tipo_funcion).lower(), None)
     if desc["media_kind"] == "gauss":
         c, s = desc["media_data"]
@@ -103,11 +93,6 @@ def parametros_originales_temperatura_media_texto(tipo_funcion: str) -> Tuple[st
 
 
 def _desc_humedad(tipo_funcion: str, g: Optional[np.ndarray]) -> Dict[str, Any]:
-    """
-    Genes hum (9): [baja a,b,c,d](4), [media a,b,c](3), [alta a,b](2) → trap [a,b,100,100].
-    En modo gaussiana, la media usa centro en el vértice central del triángulo y sigma
-    proporcional a la base (mismos 3 genes, interpretación dual).
-    """
     if g is None:
         baja = [0.0, 0.0, 25.0, 50.0]
         media_tri = [20.0, 50.0, 80.0]
@@ -132,54 +117,10 @@ def _desc_humedad(tipo_funcion: str, g: Optional[np.ndarray]) -> Dict[str, Any]:
     }
 
 
-def mf_temperatura_arrays(desc: Dict[str, Any], x: np.ndarray) -> Dict[str, np.ndarray]:
-    yb = fuzz.trapmf(x, desc["baja_trap"])
-    ya = fuzz.trapmf(x, desc["alta_trap"])
-    if desc["media_kind"] == "gauss":
-        c, s = desc["media_data"]
-        ym = fuzz.gaussmf(x, c, s)
-    elif desc["media_kind"] == "tri":
-        ym = fuzz.trimf(x, desc["media_data"])
-    else:
-        ym = fuzz.trapmf(x, desc["media_data"])
-    return {"baja": yb, "media": ym, "alta": ya}
-
-
-def mf_humedad_arrays(dh: Dict[str, Any], x: np.ndarray) -> Dict[str, np.ndarray]:
-    yb = fuzz.trapmf(x, dh["baja_trap"])
-    ya = fuzz.trapmf(x, dh["alta_trap"])
-    if dh["tipo"] == "gaussiana":
-        c, s = dh["media_gauss"]
-        ym = fuzz.gaussmf(x, c, s)
-    elif dh["tipo"] == "triangular":
-        ym = fuzz.trimf(x, dh["media_tri"])
-    else:
-        c, s = dh["media_gauss"]
-        left = max(0.0, c - 2.0 * s)
-        mid_l = max(0.0, c - s)
-        mid_r = min(_HUM_MAX, c + s)
-        right = min(_HUM_MAX, c + 2.0 * s)
-        ym = fuzz.trapmf(x, _ordenar_trap(left, mid_l, mid_r, right))
-    return {"baja": yb, "media": ym, "alta": ya}
-
-
-def mf_riego_default_arrays(x: np.ndarray) -> Dict[str, np.ndarray]:
-    """Salida fija (no forma parte de los 18 genes)."""
-    return {
-        "bajo": fuzz.trapmf(x, [0, 0, 2, 5]),
-        "medio": fuzz.trimf(x, [2, 5, 8]),
-        "alto": fuzz.trapmf(x, [5, 8, 10, 10]),
-    }
-
-
 def curvas_membresia_para_grafico(
     tipo_funcion: str = "triangular",
     parametros: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
-    """
-    Datos listos para matplotlib (sin dibujar aquí).
-    Retorna ejes y curvas para temperatura, humedad y riego.
-    """
     tg, hg = _desempaquetar_genes(parametros)
     dt = _desc_temperatura(tipo_funcion, tg)
     dh = _desc_humedad(tipo_funcion, hg)
@@ -193,86 +134,12 @@ def curvas_membresia_para_grafico(
     }
 
 
-def _nivel_linguistico(valor: float, x: np.ndarray, mfs: Dict[str, np.ndarray]) -> str:
-    idx = int(np.argmin(np.abs(x - valor)))
-    etiquetas = ["bajo", "medio", "alto"]
-    claves = ["bajo", "medio", "alto"]
-    grados = [float(mfs[k][idx]) for k in claves]
-    return etiquetas[int(np.argmax(grados))]
-
-
-def _activaciones_reglas(mu_t: Dict[str, float], mu_h: Dict[str, float]) -> Dict[str, float]:
-    """Grado de activación (AND = min) para las 9 reglas Mamdani."""
-    return {
-        "R1_humedad_baja_temp_alta_riego_alto": min(mu_h["baja"], mu_t["alta"]),
-        "R2_humedad_baja_temp_media_riego_alto": min(mu_h["baja"], mu_t["media"]),
-        "R3_humedad_baja_temp_baja_riego_medio": min(mu_h["baja"], mu_t["baja"]),
-        "R4_humedad_media_temp_alta_riego_medio": min(mu_h["media"], mu_t["alta"]),
-        "R5_humedad_media_temp_media_riego_medio": min(mu_h["media"], mu_t["media"]),
-        "R6_humedad_media_temp_baja_riego_bajo": min(mu_h["media"], mu_t["baja"]),
-        "R7_humedad_alta_temp_alta_riego_bajo": min(mu_h["alta"], mu_t["alta"]),
-        "R8_humedad_alta_temp_media_riego_bajo": min(mu_h["alta"], mu_t["media"]),
-        "R9_humedad_alta_temp_baja_riego_bajo": min(mu_h["alta"], mu_t["baja"]),
-    }
-
-
-def _membresia_en_punto(x_arr: np.ndarray, y_arr: np.ndarray, x0: float) -> float:
-    return float(fuzz.interp_membership(x_arr, y_arr, x0))
-
-
-# (humedad_cat, temperatura_cat, riego_cat) — 9 reglas Mamdani
-_REGLAS_MAMDANI: List[Tuple[str, str, str]] = [
-    ("baja", "alta", "alto"),
-    ("baja", "media", "alto"),
-    ("baja", "baja", "medio"),
-
-    ("media", "alta", "medio"),
-    ("media", "media", "medio"),
-    ("media", "baja", "bajo"),
-
-    ("alta", "alta", "bajo"),
-    ("alta", "media", "bajo"),
-    ("alta", "baja", "bajo"),
-]
-
-
-def _inferencia_mamdani_centroide(
-    mu_h: Dict[str, float],
-    mu_t: Dict[str, float],
-    r_mf: Dict[str, np.ndarray],
-    humedad: float,
-) -> float:
-    """Agregación max-min y defuzzificación por centroide (universo de riego)."""
-    agregado = np.zeros_like(_X_RIEGO, dtype=float)
-    for kh, kt, ko in _REGLAS_MAMDANI:
-        act = min(mu_h[kh], mu_t[kt])
-        if act <= 0.0:
-            continue
-        recortada = np.minimum(r_mf[ko], act)
-        agregado = np.maximum(agregado, recortada)
-    if float(np.max(agregado)) < 1e-9:
-        if humedad > 70.0:
-            return 1.0
-        if humedad < 30.0:
-            return 7.5
-        return 4.0
-    try:
-        return float(fuzz.defuzz(_X_RIEGO, agregado, "centroid"))
-    except Exception:
-        return float(_X_RIEGO[int(np.argmax(agregado))])
-
-
 def calcular_riego(
     temperatura: float,
     humedad: float,
     tipo_funcion: str = "triangular",
     parametros: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
-    """
-    Inferencia Mamdani + defuzzificación por centroide.
-
-    parametros: 18 floats (temp 9 + humedad 9) o None para valores por defecto.
-    """
     try:
         temperatura = float(np.clip(temperatura, 0.0, _TEMP_MAX))
         humedad = float(np.clip(humedad, 0.0, _HUM_MAX))
@@ -302,3 +169,4 @@ def calcular_riego(
         return {"agua": agua, "nivel": nivel, "activaciones": activaciones}
     except Exception as e:
         raise RuntimeError(f"Error en el sistema difuso: {e}") from e
+

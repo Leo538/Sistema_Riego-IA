@@ -8,8 +8,8 @@ from typing import Any, Dict
 
 import numpy as np
 
-from .fuzzy_system import calcular_riego
-from .genetic_algorithm import ejecutar_genetico
+from .fuzzy.sistema import calcular_riego
+from .genetico.algoritmo import ejecutar_genetico
 
 
 def generar_datos() -> Dict[str, float]:

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-from logica.fuzzy_system import (
+from logica.fuzzy.sistema import (
     calcular_riego,
     curvas_membresia_para_grafico,
     parametros_originales_temperatura_media_texto,
