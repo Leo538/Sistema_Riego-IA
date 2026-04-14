@@ -12,7 +12,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-from logica.fuzzy_system import calcular_riego, curvas_membresia_para_grafico
+from logica.fuzzy_system import (
+    calcular_riego,
+    curvas_membresia_para_grafico,
+    parametros_originales_temperatura_media_texto,
+)
 from logica.simulacion import ejecutar_con_genetico, generar_datos
 
 from .cultivo_mora import render_cultivo_mora
@@ -116,6 +120,91 @@ def _fig_riego_salida(curvas: Dict[str, np.ndarray], x: np.ndarray) -> plt.Figur
     ax.grid(True, alpha=0.25)
     fig.tight_layout()
     return fig
+
+
+def _genes_ag_lista(chrom: np.ndarray, start: int, end: int) -> str:
+    sl = np.asarray(chrom, dtype=float).flatten()[start:end]
+    return str([round(float(x), 2) for x in sl])
+
+
+def _genes_ag_gauss_desde_tri(media_tri: np.ndarray) -> str:
+    a, b, c = [float(x) for x in np.asarray(media_tri, dtype=float).flatten()]
+    centro = b
+    sigma = max((c - a) / 6.0, 1.0)
+    return str([round(centro, 2), round(sigma, 2)])
+
+
+def _genes_ag_temp_media(tipo_fn: str, centro_sigma: np.ndarray) -> str:
+    centro, sigma = [float(x) for x in np.asarray(centro_sigma, dtype=float).flatten()]
+    sigma = max(sigma, 0.5)
+    if str(tipo_fn).lower() == "gaussiana":
+        return str([round(centro, 2), round(sigma, 2)])
+    a = max(0.0, centro - 3.0 * sigma)
+    c = min(50.0, centro + 3.0 * sigma)
+    return str([round(a, 2), round(centro, 2), round(c, 2)])
+
+
+def _nota_tabla_temp_hum(optimizado: bool) -> str:
+    if optimizado:
+        return "✅ AG ajustó estos parámetros"
+    return "📐 Ejecute el AG para ver la comparación"
+
+
+def _markdown_tabla_temperatura(tipo_fn: str, params_plot: Optional[np.ndarray]) -> str:
+    forma_media, orig_media = parametros_originales_temperatura_media_texto(tipo_fn)
+    if params_plot is None:
+        ag_baja = ag_media = ag_alta = "— sin optimizar"
+    else:
+        p = np.asarray(params_plot, dtype=float).flatten()
+        ag_baja = _genes_ag_lista(p, 0, 4)
+        ag_media = _genes_ag_temp_media(tipo_fn, p[4:6])
+        ag_alta = str([round(float(x), 2) for x in p[6:9]] + [50.0])
+    return f"""
+| Categoría | Forma | Parámetros originales | Parámetros AG |
+| :--- | :--- | :--- | :--- |
+| Baja | Trapezoidal | [0, 0, 10, 25] | {ag_baja} |
+| Media | {forma_media} | {orig_media} | {ag_media} |
+| Alta | Trapezoidal | [25, 40, 50, 50] | {ag_alta} |
+
+{_nota_tabla_temp_hum(params_plot is not None)}
+"""
+
+
+def _markdown_tabla_humedad(tipo_fn: str, params_plot: Optional[np.ndarray]) -> str:
+    forma_media = "Gaussiana" if tipo_fn == "gaussiana" else "Triangular"
+    orig_media = "[20, 50, 80]"
+    if params_plot is None:
+        ag_baja = ag_media = ag_alta = "— sin optimizar"
+    else:
+        p = np.asarray(params_plot, dtype=float).flatten()
+        ag_baja = _genes_ag_lista(p, 9, 13)
+        media_tri = p[13:16]
+        if tipo_fn == "gaussiana":
+            ag_media = _genes_ag_gauss_desde_tri(media_tri)
+        else:
+            ag_media = _genes_ag_lista(p, 13, 16)
+        ag_alta = str([round(float(x), 2) for x in p[16:18]] + [100.0, 100.0])
+    return f"""
+| Categoría | Forma | Parámetros originales | Parámetros AG |
+| :--- | :--- | :--- | :--- |
+| Baja | Trapezoidal | [0, 0, 25, 50] | {ag_baja} |
+| Media | {forma_media} | {orig_media} | {ag_media} |
+| Alta | Trapezoidal | [50, 75, 100, 100] | {ag_alta} |
+
+{_nota_tabla_temp_hum(params_plot is not None)}
+"""
+
+
+def _markdown_tabla_riego() -> str:
+    return """
+| Categoría | Forma | Parámetros originales | Parámetros AG |
+| :--- | :--- | :--- | :--- |
+| Bajo | Trapezoidal | [0, 0, 2, 5] | No optimizado |
+| Medio | Triangular | [2, 5, 8] | No optimizado |
+| Alto | Trapezoidal | [5, 8, 10, 10] | No optimizado |
+
+ℹ️ La salida no es optimizada por el AG
+"""
 
 
 def _nivel_color_html(nivel: str) -> str:
@@ -228,6 +317,7 @@ def ejecutar_interfaz() -> None:
             )
             st.pyplot(f1, clear_figure=True)
             plt.close(f1)
+            st.markdown(_markdown_tabla_temperatura(tipo_fn, params_plot))
 
             f2 = _fig_membresia(
                 "Humedad del suelo",
@@ -238,10 +328,12 @@ def ejecutar_interfaz() -> None:
             )
             st.pyplot(f2, clear_figure=True)
             plt.close(f2)
+            st.markdown(_markdown_tabla_humedad(tipo_fn, params_plot))
 
             f3 = _fig_riego_salida(datos["riego"], datos["riego_x"])
             st.pyplot(f3, clear_figure=True)
             plt.close(f3)
+            st.markdown(_markdown_tabla_riego())
 
             st.subheader("5. Resultado en tiempo real (sin optimizar genes)")
             agua = live["agua"]

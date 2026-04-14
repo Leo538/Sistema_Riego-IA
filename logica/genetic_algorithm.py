@@ -92,7 +92,46 @@ def _penalizar_incoherencia(cromosoma: np.ndarray) -> float:
     if cromosoma[12] > cromosoma[16]:
         penalizacion += (cromosoma[12] - cromosoma[16]) * 10.0
 
+    if cromosoma[3] > cromosoma[4]:
+        penalizacion += (cromosoma[3] - cromosoma[4]) * 6.0
+
+    if cromosoma[4] > cromosoma[6]:
+        penalizacion += (cromosoma[4] - cromosoma[6]) * 6.0
+
+    if cromosoma[12] > cromosoma[14]:
+        penalizacion += (cromosoma[12] - cromosoma[14]) * 6.0
+
+    if cromosoma[15] > cromosoma[16]:
+        penalizacion += (cromosoma[15] - cromosoma[16]) * 6.0
+
+    ancho_h_media = cromosoma[15] - cromosoma[13]
+    if ancho_h_media < 12.0:
+        penalizacion += (12.0 - ancho_h_media) * 2.0
+    if ancho_h_media > 55.0:
+        penalizacion += (ancho_h_media - 55.0) * 2.0
+
+    sigma_temp = cromosoma[5]
+    if sigma_temp > 9.0:
+        penalizacion += (sigma_temp - 9.0) * 4.0
+
     return penalizacion
+
+
+def _agua_objetivo(temperatura: float, humedad: float) -> float:
+    """
+    Referencia física suave para que el AG no premie extremos sin control.
+    """
+    if humedad <= 25.0:
+        base = 6.8
+    elif humedad <= 45.0:
+        base = 5.2
+    elif humedad <= 65.0:
+        base = 3.6
+    else:
+        base = 1.4
+
+    ajuste_temp = float(np.interp(temperatura, [0.0, 25.0, 50.0], [-0.4, 0.0, 0.9]))
+    return float(np.clip(base + ajuste_temp, 0.5, 8.2))
 
 
 def fitness(
@@ -104,10 +143,10 @@ def fitness(
     """
     Fitness direccional (minimizar).
 
-    - Suelo demasiado húmedo (h > ideal): penaliza fuerte el riego.
-    - Suelo muy seco (h < ideal − 20): error con α y penalización suave al agua (0,5·β·agua).
-    - Resto: error con α y agua con β.
-    - Suma penalización por MF incoherentes (solape baja/alta).
+    - Usa un agua objetivo suave dependiente de humedad y temperatura.
+    - Penaliza sobre-riego cuando el suelo ya está húmedo.
+    - Evita recompensar el máximo de agua cuando el suelo está muy seco.
+    - Suma penalización por formas incoherentes o demasiado extremas.
     """
     try:
         res = calcular_riego(
@@ -117,24 +156,34 @@ def fitness(
             parametros=cromosoma,
         )
         agua = float(res["agua"])
+        agua_base = float(
+            calcular_riego(
+                temperatura,
+                humedad,
+                tipo_funcion=tipo_funcion,
+                parametros=None,
+            )["agua"]
+        )
     except Exception:
         return 1e9
 
     error = float(humedad) - HUMEDAD_IDEAL
     incoherencia = _penalizar_incoherencia(cromosoma)
+    agua_obj = _agua_objetivo(float(temperatura), float(humedad))
+    error_agua = agua - agua_obj
+    penalizacion_estabilidad = 0.5 * (agua - agua_base) ** 2
 
-    if error > 0:
-        penalizacion_agua = agua * 2.0
-        penalizacion_error = ALPHA * error
+    if error > 0.0:
+        penalizacion_agua = ALPHA * (error_agua ** 2) + BETA * max(0.0, agua - 3.0) ** 2
+        penalizacion_error = 0.15 * error
     elif error < -20.0:
-        # Suelo muy seco pero penalizar algo el agua para evitar favorecer el máximo sin límite
-        penalizacion_agua = BETA * 0.5 * agua
-        penalizacion_error = ALPHA * abs(error)
+        penalizacion_agua = ALPHA * (error_agua ** 2) + BETA * max(0.0, 5.5 - agua) ** 2
+        penalizacion_error = 0.1 * abs(error)
     else:
-        penalizacion_agua = BETA * agua
-        penalizacion_error = ALPHA * abs(error)
+        penalizacion_agua = ALPHA * (error_agua ** 2)
+        penalizacion_error = BETA * abs(error_agua)
 
-    return penalizacion_error + penalizacion_agua + incoherencia
+    return penalizacion_error + penalizacion_agua + incoherencia + penalizacion_estabilidad
 
 
 def torneo_binario(poblacion: List[np.ndarray], fits: np.ndarray) -> np.ndarray:
@@ -153,7 +202,7 @@ def cruce_un_punto(p1: np.ndarray, p2: np.ndarray) -> Tuple[np.ndarray, np.ndarr
     return h1, h2
 
 
-def mutar(c: np.ndarray, sigma_ruido: float = 1.0) -> None:
+def mutar(c: np.ndarray, sigma_ruido: float = 0.6) -> None:
     for i in range(18):
         if np.random.random() < PROB_MUTACION:
             c[i] += float(np.random.normal(0.0, sigma_ruido))

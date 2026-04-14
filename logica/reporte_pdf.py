@@ -24,7 +24,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .fuzzy_system import curvas_membresia_para_grafico
+from .fuzzy_system import curvas_membresia_para_grafico, parametros_originales_temperatura_media_texto
 
 COLOR_BAJA = "#1f77b4"
 COLOR_MEDIA = "#2ca02c"
@@ -148,6 +148,90 @@ def _fig_fitness(hist: List[float]) -> plt.Figure:
     return fig
 
 
+def _genes_ag_str(chrom: np.ndarray, start: int, end: int) -> str:
+    sl = np.asarray(chrom, dtype=float).flatten()[start:end]
+    return str([round(float(x), 2) for x in sl])
+
+
+def _genes_ag_gauss_desde_tri(media_tri: np.ndarray) -> str:
+    a, b, c = [float(x) for x in np.asarray(media_tri, dtype=float).flatten()]
+    centro = b
+    sigma = max((c - a) / 6.0, 1.0)
+    return str([round(centro, 2), round(sigma, 2)])
+
+
+def _genes_ag_temp_media(tipo_fn: str, centro_sigma: np.ndarray) -> str:
+    centro, sigma = [float(x) for x in np.asarray(centro_sigma, dtype=float).flatten()]
+    sigma = max(sigma, 0.5)
+    if str(tipo_fn).lower() == "gaussiana":
+        return str([round(centro, 2), round(sigma, 2)])
+    a = max(0.0, centro - 3.0 * sigma)
+    c = min(50.0, centro + 3.0 * sigma)
+    return str([round(a, 2), round(centro, 2), round(c, 2)])
+
+
+def _ag_pdf_temperatura(tipo_fn: str, parametros_grafico: Optional[np.ndarray]) -> Tuple[str, str, str]:
+    if parametros_grafico is None:
+        return "—", "—", "—"
+    p = np.asarray(parametros_grafico, dtype=float).flatten()
+    ag_baja = _genes_ag_str(p, 0, 4)
+    ag_media = _genes_ag_temp_media(tipo_fn, p[4:6])
+    ag_alta = str([round(float(x), 2) for x in p[6:9]] + [50.0])
+    return ag_baja, ag_media, ag_alta
+
+
+def _ag_pdf_humedad(tipo_fn: str, parametros_grafico: Optional[np.ndarray]) -> Tuple[str, str, str]:
+    if parametros_grafico is None:
+        return "—", "—", "—"
+    p = np.asarray(parametros_grafico, dtype=float).flatten()
+    ag_baja = _genes_ag_str(p, 9, 13)
+    media_tri = p[13:16]
+    if str(tipo_fn).lower() == "gaussiana":
+        ag_media = _genes_ag_gauss_desde_tri(media_tri)
+    else:
+        ag_media = _genes_ag_str(p, 13, 16)
+    ag_alta = str([round(float(x), 2) for x in p[16:18]] + [100.0, 100.0])
+    return ag_baja, ag_media, ag_alta
+
+
+def _tabla_membresia_pdf(
+    fuente: str,
+    filas: List[List[str]],
+) -> Table:
+    datos = [
+        ["Categoría", "Forma", "Parámetros originales", "Parámetros AG"],
+    ] + filas
+    t = Table(datos, hAlign="LEFT", colWidths=[3.2 * cm, 3.0 * cm, 5.2 * cm, 5.6 * cm])
+    t.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8e8e8")),
+                ("FONTNAME", (0, 0), (-1, -1), fuente),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9f9f9")]),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    return t
+
+
+def _nota_pdf_temp_hum(optimizado: bool, fuente: str, est_cuerpo: ParagraphStyle) -> Paragraph:
+    txt = "AG ajustó estos parámetros" if optimizado else "Ejecute el AG para ver la comparación"
+    if fuente != "Helvetica":
+        pref = "✅ " if optimizado else "📐 "
+    else:
+        pref = "[OK] " if optimizado else "[i] "
+    return Paragraph(f"{pref}{txt}", est_cuerpo)
+
+
+def _nota_pdf_riego(fuente: str, est_cuerpo: ParagraphStyle) -> Paragraph:
+    msg = "La salida no es optimizada por el AG"
+    pref = "ℹ️ " if fuente != "Helvetica" else "[i] "
+    return Paragraph(f"{pref}{msg}", est_cuerpo)
+
+
 def _fig_a_imagen(fig: plt.Figure, dpi: int = 110) -> io.BytesIO:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", facecolor="white")
@@ -261,19 +345,56 @@ def generar_reporte_sesion_pdf(
         ancho_img = 16 * cm
         alto_img = 8 * cm
 
-        for titulo, x_arr, curvas, x0, xlab in [
-            ("Temperatura", datos["temp_x"], datos["temp"], temperatura, "Temperatura (°C)"),
-            ("Humedad del suelo", datos["humedad_x"], datos["humedad"], humedad, "Humedad (%)"),
-        ]:
+        optimizado = parametros_grafico is not None
+        forma_temp_media, orig_temp_media = parametros_originales_temperatura_media_texto(tipo_fn)
+        forma_hum_media = "Gaussiana" if str(tipo_fn).lower() == "gaussiana" else "Triangular"
+
+        for idx, (titulo, x_arr, curvas, x0, xlab) in enumerate(
+            [
+                ("Temperatura", datos["temp_x"], datos["temp"], temperatura, "Temperatura (°C)"),
+                ("Humedad del suelo", datos["humedad_x"], datos["humedad"], humedad, "Humedad (%)"),
+            ]
+        ):
             fig = _fig_membresia(titulo, x_arr, curvas, x0, xlab)
             buf = _fig_a_imagen(fig)
             story.append(Image(buf, width=ancho_img, height=alto_img))
-            story.append(Spacer(1, 0.2 * cm))
+            story.append(Spacer(1, 0.15 * cm))
+            if idx == 0:
+                ag_b, ag_m, ag_a = _ag_pdf_temperatura(tipo_fn, parametros_grafico)
+                filas_mem = [
+                    ["Baja", "Trapezoidal", "[0, 0, 10, 25]", ag_b],
+                    ["Media", forma_temp_media, orig_temp_media, ag_m],
+                    ["Alta", "Trapezoidal", "[25, 40, 50, 50]", ag_a],
+                ]
+            else:
+                ag_b, ag_m, ag_a = _ag_pdf_humedad(tipo_fn, parametros_grafico)
+                filas_mem = [
+                    ["Baja", "Trapezoidal", "[0, 0, 25, 50]", ag_b],
+                    ["Media", forma_hum_media, "[20, 50, 80]", ag_m],
+                    ["Alta", "Trapezoidal", "[50, 75, 100, 100]", ag_a],
+                ]
+            story.append(_tabla_membresia_pdf(fuente, filas_mem))
+            story.append(Spacer(1, 0.12 * cm))
+            story.append(_nota_pdf_temp_hum(optimizado, fuente, est_cuerpo))
+            story.append(Spacer(1, 0.28 * cm))
 
         fig_r = _fig_riego(datos["riego"], datos["riego_x"])
         buf_r = _fig_a_imagen(fig_r)
         story.append(Image(buf_r, width=ancho_img, height=alto_img))
-        story.append(Spacer(1, 0.35 * cm))
+        story.append(Spacer(1, 0.15 * cm))
+        if parametros_grafico is None:
+            ag_rb, ag_rm, ag_ra = "—", "—", "—"
+        else:
+            ag_rb = ag_rm = ag_ra = "No optimizado"
+        filas_riego = [
+            ["Bajo", "Trapezoidal", "[0, 0, 2, 5]", ag_rb],
+            ["Medio", "Triangular", "[2, 5, 8]", ag_rm],
+            ["Alto", "Trapezoidal", "[5, 8, 10, 10]", ag_ra],
+        ]
+        story.append(_tabla_membresia_pdf(fuente, filas_riego))
+        story.append(Spacer(1, 0.12 * cm))
+        story.append(_nota_pdf_riego(fuente, est_cuerpo))
+        story.append(Spacer(1, 0.28 * cm))
 
         story.append(Paragraph("EVOLUCIÓN DEL FITNESS", est_subt))
         if comparacion is not None and comparacion.get("historial"):

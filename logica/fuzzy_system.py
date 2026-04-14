@@ -75,6 +75,33 @@ def _desc_temperatura(tipo_funcion: str, g: Optional[np.ndarray]) -> Dict[str, A
     return desc
 
 
+def _formato_num_tabla(x: float) -> str:
+    """Entero si aplica; si no, un decimal (para textos de tablas UI/PDF)."""
+    xf = float(x)
+    if abs(xf - round(xf)) < 1e-9:
+        return str(int(round(xf)))
+    return str(round(xf, 1))
+
+
+def parametros_originales_temperatura_media_texto(tipo_funcion: str) -> Tuple[str, str]:
+    """
+    (Forma, parámetros originales) para la fila «Media» en tablas de membresía,
+    coherente con _desc_temperatura(..., genes=None).
+    """
+    desc = _desc_temperatura(str(tipo_funcion).lower(), None)
+    if desc["media_kind"] == "gauss":
+        c, s = desc["media_data"]
+        return "Gaussiana", f"centro={_formato_num_tabla(c)}, σ={_formato_num_tabla(s)}"
+    if desc["media_kind"] == "tri":
+        a, b, c = desc["media_data"]
+        return (
+            "Triangular",
+            f"[{_formato_num_tabla(a)}, {_formato_num_tabla(b)}, {_formato_num_tabla(c)}]",
+        )
+    pts = desc["media_data"]
+    return "Trapezoidal", str([_formato_num_tabla(float(p)) for p in pts])
+
+
 def _desc_humedad(tipo_funcion: str, g: Optional[np.ndarray]) -> Dict[str, Any]:
     """
     Genes hum (9): [baja a,b,c,d](4), [media a,b,c](3), [alta a,b](2) → trap [a,b,100,100].
@@ -93,7 +120,7 @@ def _desc_humedad(tipo_funcion: str, g: Optional[np.ndarray]) -> Dict[str, Any]:
 
     a_t, b_t, c_t = media_tri
     gauss_c = float(b_t)
-    gauss_s = max((c_t - a_t) / 4.0, 1.0)
+    gauss_s = max((c_t - a_t) / 4.0, 2.0)
 
     t = str(tipo_funcion).lower()
     return {
@@ -198,9 +225,11 @@ _REGLAS_MAMDANI: List[Tuple[str, str, str]] = [
     ("baja", "alta", "alto"),
     ("baja", "media", "alto"),
     ("baja", "baja", "medio"),
+
     ("media", "alta", "medio"),
     ("media", "media", "medio"),
     ("media", "baja", "bajo"),
+
     ("alta", "alta", "bajo"),
     ("alta", "media", "bajo"),
     ("alta", "baja", "bajo"),
@@ -225,7 +254,7 @@ def _inferencia_mamdani_centroide(
         if humedad > 70.0:
             return 1.0
         if humedad < 30.0:
-            return 8.0
+            return 7.5
         return 4.0
     try:
         return float(fuzz.defuzz(_X_RIEGO, agregado, "centroid"))
