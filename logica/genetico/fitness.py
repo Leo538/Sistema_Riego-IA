@@ -173,7 +173,7 @@ def evaluar_fitness(
     cromosoma: Iterable[float],
     *,
     entradas_actuales: Optional[Mapping[str, float]] = None,
-    peso_local: float = 0.35,
+    peso_local: float = 2.0,
 ) -> float:
     try:
         error_escenarios, _ = evaluar_escenarios(cromosoma)
@@ -183,7 +183,7 @@ def evaluar_fitness(
         local = 0.0
         if entradas_actuales is not None:
             local = evaluar_caso_actual(cromosoma, entradas_actuales)
-        w = float(max(0.0, min(1.0, peso_local)))
+        w = float(max(0.0, min(10.0, peso_local)))
         return float(error_escenarios + w * local + penalizacion + estabilidad * 3.0 + tendencia)
     except Exception:
         return float("inf")

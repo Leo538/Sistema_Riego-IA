@@ -4,7 +4,8 @@ from typing import Any, Mapping, Optional
 
 import numpy as np
 
-from .cromosoma import crear_individuo_aleatorio, decodificar_cromosoma
+from .cromosoma import crear_individuo_aleatorio, codificar_parametros, decodificar_cromosoma
+from ..fuzzy.membresia import obtener_parametros_por_defecto
 from .fitness import evaluar_fitness
 from .operadores import cruce_un_punto, mutacion_gaussiana, seleccion_torneo_binario
 
@@ -16,15 +17,19 @@ def ejecutar_optimizacion(
     generaciones: int = 60,
     tamano_poblacion: int = 40,
     elitismo: int = 2,
-    probabilidad_mutacion: float = 0.15,
-    sigma_mutacion: float = 1.25,
+    probabilidad_mutacion: float = 0.25,
+    sigma_mutacion: float = 2.5,
     entradas_actuales: Optional[Mapping[str, float]] = None,
 ) -> dict[str, Any]:
     total_generaciones = max(10, int(generaciones))
     total_poblacion = max(6, int(tamano_poblacion))
     cantidad_elites = max(1, min(int(elitismo), total_poblacion))
 
-    poblacion = [crear_individuo_aleatorio() for _ in range(total_poblacion)]
+    # Sembrar el cromosoma base (configuración por defecto) para que el AG
+    # parta de una solución conocida y explore mejoras a partir de ella.
+    cromosoma_base = codificar_parametros(obtener_parametros_por_defecto())
+    poblacion = [cromosoma_base.copy()]
+    poblacion += [crear_individuo_aleatorio() for _ in range(total_poblacion - 1)]
     historial: list[float] = []
 
     fitness_actual = np.array(

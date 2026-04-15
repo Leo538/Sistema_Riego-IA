@@ -8,8 +8,8 @@ from .fuzzy.sistema import calcular_riego
 from .genetico.algoritmo import ejecutar_genetico
 
 _ORDEN_NIVEL = {"bajo": 0, "medio": 1, "alto": 2}
-_CAIDA_MINIMA_ABSOLUTA_MIN = 3.0
-_CAIDA_MINIMA_RELATIVA = 0.20
+_CAIDA_MINIMA_ABSOLUTA_MIN = 1.5
+_CAIDA_MINIMA_RELATIVA = 0.10
 
 
 def degrada_resultado(base: Dict[str, Any], optimizado: Dict[str, Any]) -> bool:

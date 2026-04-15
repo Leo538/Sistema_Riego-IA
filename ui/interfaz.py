@@ -499,33 +499,77 @@ def ejecutar_interfaz() -> None:
 
             comp = st.session_state.comparacion
             if comp is not None:
-                st.subheader("6. Comparacion antes / despues del AG")
                 sin_o = comp["resultado_sin_optimizar"]
+                opt_o = comp["resultado_optimizado"]
                 con_o = comp["resultado_final"]
                 fit = comp["mejor_fitness"]
-                fit_norm = 1.0 / (1.0 + float(fit)) if np.isfinite(float(fit)) and float(fit) >= 0.0 else 0.0
                 aceptada = bool(comp.get("se_acepta_optimizacion", False))
                 motivo = str(comp.get("motivo_decision", "")).strip() or "Sin motivo disponible."
-                tabla = f"""
-| Metrica | Sin optimizar | Con genetico |
-| :--- | :---: | :---: |
-| Duracion (min) | {sin_o['agua']:.2f} | {con_o['agua']:.2f} |
-| Nivel | {sin_o['nivel']} | {con_o['nivel']} |
-| Fitness final | — | {fit:.4f} |
-| Fitness normalizado (visual) | — | {fit_norm:.6f} |
-"""
-                st.markdown(tabla)
-                st.markdown(f"**Optimizacion aceptada:** {'Si' if aceptada else 'No'}")
-                st.caption(f"Motivo: {motivo}")
 
-                st.subheader("7. Evolucion del fitness")
+                # --- Calcular fitness base ---
+                from logica.genetico.cromosoma import codificar_parametros
+                from logica.genetico.fitness import evaluar_fitness
+                entradas_eval = {
+                    "humedad_suelo": float(hs),
+                    "temperatura": float(temp),
+                    "humedad_relativa": float(hr),
+                    "par": float(par_v),
+                }
+                try:
+                    fit_base = evaluar_fitness(
+                        codificar_parametros(sin_o["configuracion"]),
+                        entradas_actuales=entradas_eval,
+                    )
+                except Exception:
+                    fit_base = float("nan")
+
+                # ── A. Resultado del sistema de riego ──
+                st.subheader("6. Resultado del sistema de riego")
+                tabla_riego = f"""
+| Concepto | Duración (min) | Nivel |
+| :--- | :---: | :---: |
+| Base (sin AG) | {sin_o['agua']:.2f} | {sin_o['nivel']} |
+| Propuesta AG | {opt_o['agua']:.2f} | {opt_o['nivel']} |
+| **Resultado final aplicado** | **{con_o['agua']:.2f}** | **{con_o['nivel']}** |
+"""
+                st.markdown(tabla_riego)
+
+                # ── B. Diagnóstico del AG ──
+                st.subheader("7. Diagnóstico del algoritmo genético")
+                tabla_diag = f"""
+| Métrica | Valor |
+| :--- | :---: |
+| Costo base (sin optimizar) | {fit_base:.4f} |
+| Costo propuesta AG (minimizado) | {fit:.4f} |
+| Optimización aceptada | {'✅ Sí' if aceptada else '❌ No'} |
+"""
+                st.markdown(tabla_diag)
+                st.caption(f"**Motivo:** {motivo}")
+
+                # ── C. Texto aclaratorio ──
+                st.info(
+                    "ℹ️ El **costo** es una métrica de error interno del algoritmo genético que se busca minimizar y **no representa "
+                    "minutos de riego**. Una mejora (reducción) en el costo no implica necesariamente un cambio brusco "
+                    "visible en la duración del riego para el caso actual. El AG optimiza los "
+                    "parámetros de las funciones de membresía de entrada."
+                )
+
+                # ── D. Gráfica del AG ──
+                st.subheader("8. Evolución del error (costo) del AG")
                 hist = comp["historial"]
                 fig_e, ax_e = plt.subplots(figsize=(6.5, 3.4), facecolor="white")
                 ax_e.set_facecolor("#fafafa")
-                ax_e.plot(range(1, len(hist) + 1), hist, color=COLOR_BAJA, linewidth=2, marker="o", markersize=3)
-                ax_e.set_xlabel("Generacion")
-                ax_e.set_ylabel("Mejor fitness acumulado")
-                ax_e.set_title("Evolucion del mejor fitness (menor es mejor)", fontsize=12, fontweight="bold")
+                ax_e.plot(
+                    range(1, len(hist) + 1),
+                    hist,
+                    color="#1f77b4",
+                    linewidth=2,
+                    marker="o",
+                    markersize=3,
+                )
+                ax_e.set_xlabel("Generación")
+                ax_e.set_ylabel("Costo (menor es mejor)")
+                ax_e.set_title("Evolución de la minimización del error", fontsize=12, fontweight="bold")
                 ax_e.grid(True, alpha=0.3)
                 fig_e.tight_layout()
                 st.pyplot(fig_e, clear_figure=True)
