@@ -1,6 +1,6 @@
 # Sistema inteligente de riego automatizado
 
-Aplicación con **lógica difusa (Mamdani)** y **algoritmo genético** para recomendar riego según temperatura y humedad del suelo. Interfaz web con **Streamlit**.
+Aplicación con **lógica difusa (Mamdani)** y **algoritmo genético** para recomendar la duración del riego según **cuatro entradas** (humedad del suelo, temperatura, humedad relativa, PAR). Las membresías usan **trapecios** en etiquetas baja/alta y **triángulos** en la media. Interfaz web con **Streamlit**.
 
 ## Requisitos
 
@@ -52,15 +52,15 @@ Se abrirá el navegador (por defecto `http://localhost:8501`). Para detener el s
 
 ## Uso rápido
 
-- Pestaña **Panel de Control**: ajusta temperatura y humedad, elige tipo de función de membresía, ejecuta el algoritmo genético si quieres optimizar y descarga el **PDF** del reporte (requiere `reportlab` y `Pillow`, ya listados en `requirements.txt`).
-- Pestaña **Cultivo de Mora**: visualización viva ligada a los mismos valores del panel.
+- Pestaña **Panel de Control**: ajusta las cuatro entradas, ejecuta el algoritmo genético si quieres optimizar las membresías de entrada y descarga el **PDF** del reporte (requiere `reportlab` y `Pillow`, ya listados en `requirements.txt`).
+- Pestaña **Cultivo**: visualización ligada a los mismos valores del panel.
 
 ## Estructura del proyecto
 
 | Ruta        | Descripción                                      |
 | ----------- | ------------------------------------------------ |
 | `main.py`   | Punto de entrada; lanza la interfaz Streamlit    |
-| `ui/`       | Interfaz (`interfaz.py`, `cultivo_mora.py`)      |
+| `ui/`       | Interfaz (`interfaz.py`, `cultivo.py`)             |
 | `logica/`   | Difuso, AG, simulación, PDF                      |
 | `requirements.txt` | Dependencias de Python                    |
 

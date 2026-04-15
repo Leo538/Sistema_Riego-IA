@@ -1,62 +1,43 @@
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import Iterable
 
 import numpy as np
 
-
-PROB_MUTACION = 0.2
-
-
-def _reparar_trap_segment(c: np.ndarray, i0: int, u_max: float) -> None:
-    seg = np.clip(c[i0 : i0 + 4], 0.0, u_max)
-    seg.sort()
-    c[i0 : i0 + 4] = seg
+from .cromosoma import TOTAL_GENES, reparar_cromosoma
 
 
-def _reparar_temp_alta(c: np.ndarray) -> None:
-    seg = np.clip(c[6:9], 20.0, 50.0)
-    seg.sort()
-    c[6:9] = seg
+# 2. Selección
 
 
-def _reparar_hum_alta(c: np.ndarray) -> None:
-    seg = np.clip(c[16:18], 55.0, 85.0)
-    seg.sort()
-    c[16:18] = seg
-
-
-def reparar_cromosoma(c: np.ndarray) -> None:
-    _reparar_trap_segment(c, 0, 30.0)
-    c[4] = float(np.clip(c[4], 15.0, 35.0))
-    c[5] = float(np.clip(c[5], 3.0, 10.0))
-    _reparar_temp_alta(c)
-    _reparar_trap_segment(c, 9, 60.0)
-    seg = np.clip(c[13:16], 20.0, 80.0)
-    seg.sort()
-    c[13:16] = seg
-    _reparar_hum_alta(c)
-
-
-def torneo_binario(poblacion: List[np.ndarray], fits: np.ndarray) -> np.ndarray:
+def seleccion_torneo_binario(poblacion: list[np.ndarray], fitness_poblacion: np.ndarray) -> np.ndarray:
     i, j = np.random.randint(0, len(poblacion), size=2)
-    return poblacion[i].copy() if fits[i] < fits[j] else poblacion[j].copy()
+    ganador = i if fitness_poblacion[i] <= fitness_poblacion[j] else j
+    return poblacion[ganador].copy()
 
 
-def cruce_un_punto(p1: np.ndarray, p2: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    punto = int(np.random.randint(1, 18))
-    h1 = p1.copy()
-    h2 = p2.copy()
-    h1[punto:] = p2[punto:]
-    h2[punto:] = p1[punto:]
-    reparar_cromosoma(h1)
-    reparar_cromosoma(h2)
-    return h1, h2
+# 3. Cruce (crossover)
 
 
-def mutar(c: np.ndarray, sigma_ruido: float = 0.6) -> None:
-    for i in range(18):
-        if np.random.random() < PROB_MUTACION:
-            c[i] += float(np.random.normal(0.0, sigma_ruido))
-    reparar_cromosoma(c)
+def cruce_un_punto(padre_a: Iterable[float], padre_b: Iterable[float]) -> tuple[np.ndarray, np.ndarray]:
+    a = np.asarray(list(padre_a), dtype=float)
+    b = np.asarray(list(padre_b), dtype=float)
+    punto = int(np.random.randint(1, TOTAL_GENES))
+    hijo_a = np.concatenate([a[:punto], b[punto:]])
+    hijo_b = np.concatenate([b[:punto], a[punto:]])
+    return reparar_cromosoma(hijo_a), reparar_cromosoma(hijo_b)
 
+
+# 4. Mutación
+
+
+def mutacion_gaussiana(cromosoma: Iterable[float], probabilidad: float = 0.15, sigma: float = 1.25) -> np.ndarray:
+    genes = np.asarray(list(cromosoma), dtype=float).copy()
+    mascara = np.random.random(size=genes.size) < float(probabilidad)
+    ruido = np.random.normal(0.0, float(sigma), size=genes.size)
+    genes[mascara] += ruido[mascara]
+    return reparar_cromosoma(genes)
+
+
+def reparar_individuo(cromosoma: Iterable[float]) -> np.ndarray:
+    return reparar_cromosoma(cromosoma)
