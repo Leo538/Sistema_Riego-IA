@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="./docs/assets/banner.svg" alt="Sistema de Riego · Simulación con lógica difusa y optimización genética" width="100%">
+  <picture>
+    <source media="(prefers-reduced-motion: no-preference)" srcset="./docs/assets/banner-motion.svg">
+    <img src="./docs/assets/banner.svg" width="820" alt="Sistema de Riego · Simulación con lógica difusa y optimización genética">
+  </picture>
 </p>
 
 <p align="center">
@@ -67,16 +70,10 @@ python _test_ag.py
 ## Capturas
 
 <p align="center">
-  <a href="./docs/assets/capturas/riego.png"><img src="./docs/assets/capturas/riego.png" alt="Panel de control y funciones de pertenencia" width="820"></a><br><strong>Panel de control y funciones de pertenencia</strong>
+  <a href="./docs/assets/capturas/riego.png"><img src="./docs/assets/vistas/riego.svg" width="820" alt="Panel de control y funciones de pertenencia"></a>
 </p>
 
-<table width="100%">
-  <tr>
-    <td width="50%" valign="top" align="center">
-      <a href="./docs/assets/capturas/riego-resultado.png"><img src="./docs/assets/capturas/riego-resultado.png" alt="Resultado de la simulación" width="410"></a><br><sub>Resultado de la simulación</sub>
-    </td>
-    <td width="50%" valign="top" align="center">
-      <a href="./docs/assets/capturas/riego-cultivo.png"><img src="./docs/assets/capturas/riego-cultivo.png" alt="Visualización del cultivo" width="410"></a><br><sub>Visualización del cultivo</sub>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <a href="./docs/assets/capturas/riego-resultado.png"><img src="./docs/assets/vistas/riego-resultado.svg" width="408" alt="Resultado de la simulación"></a>
+  <a href="./docs/assets/capturas/riego-cultivo.png"><img src="./docs/assets/vistas/riego-cultivo.svg" width="408" alt="Visualización del cultivo"></a>
+</p>
