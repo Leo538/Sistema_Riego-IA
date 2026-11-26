@@ -1,70 +1,82 @@
-# Sistema inteligente de riego automatizado
+<p align="center">
+  <img src="./docs/assets/banner.svg" alt="Sistema de Riego · Simulación con lógica difusa y optimización genética" width="100%">
+</p>
 
-Aplicación con **lógica difusa (Mamdani)** y **algoritmo genético** para recomendar la duración del riego según **cuatro entradas** (humedad del suelo, temperatura, humedad relativa, PAR). Las membresías usan **trapecios** en etiquetas baja/alta y **triángulos** en la media. Interfaz web con **Streamlit**.
+<p align="center">
+  <a href="#funcionalidades">Funcionalidades</a> · <a href="#tecnologías">Tecnologías</a> · <a href="#ejecutar-en-local">Ejecutar en local</a> · <a href="#capturas">Capturas</a>
+</p>
 
-## Requisitos
+Aplicación web para comparar la duración estimada de riego bajo distintas condiciones de cultivo. Usa un controlador difuso Mamdani y permite ajustar sus funciones de pertenencia con un algoritmo genético desde el panel de control.
 
-- **Python 3.10 o superior** (recomendado 3.11+)
-- `pip` actualizado
+## Funcionalidades
 
-## Instalación
+- **Simulación.** Combina humedad del suelo, temperatura, humedad relativa y radiación fotosintéticamente activa (PAR) para estimar minutos de riego.
+- **Comparación.** Presenta el resultado base junto a la propuesta del optimizador genético. Puedes ajustar el tamaño de la población y el número de generaciones.
+- **Visualización.** Muestra funciones de pertenencia y una vista del cultivo sincronizada con las entradas del panel.
+- **Reporte PDF.** Guarda el resultado de la simulación y sus gráficas desde la interfaz.
 
-1. Entra en la carpeta del proyecto (si la ruta tiene espacios, usa comillas en la terminal):
+## Tecnologías
 
-   ```bash
-   cd "ruta\al\proyecto\Riego Inteligente"
-   ```
+| Tecnología | Uso |
+| --- | --- |
+| Python | Reglas difusas, simulación y optimización genética |
+| Streamlit | Panel de control y visualización del cultivo |
+| NumPy y Matplotlib | Cálculos numéricos y gráficas |
+| ReportLab y Pillow | Documento PDF e imágenes del reporte |
 
-2. *(Opcional)* Crea y activa un entorno virtual:
+El modelo usa pertenencias trapezoidales en los extremos y triangulares en la categoría media. El optimizador propone cambios en las membresías de entrada y compara la estimación resultante con el modelo base.
 
-   **Windows (PowerShell)**
+## Ejecutar en local
 
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
+Necesitas **Python 3.10 o superior** y `pip`. Ejecuta los comandos desde la raíz del repositorio.
 
-   **macOS / Linux**
+**Windows, PowerShell**
 
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-
-3. Instala las dependencias:
-
-   ```bash
-   python -m pip install --upgrade pip
-   python -m pip install -r requirements.txt
-   ```
-
-   Paquetes principales: `streamlit`, `numpy`, `scikit-fuzzy`, `matplotlib`, `networkx`, `reportlab`, `Pillow`.
-
-## Cómo iniciar la aplicación
-
-Desde la **raíz del proyecto** (donde está `main.py`):
-
-```bash
-python -m streamlit run main.py
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run main.py
 ```
 
-Se abrirá el navegador (por defecto `http://localhost:8501`). Para detener el servidor, usa `Ctrl+C` en la terminal.
+**macOS o Linux**
 
-## Uso rápido
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m streamlit run main.py
+```
 
-- Pestaña **Panel de Control**: ajusta las cuatro entradas, ejecuta el algoritmo genético si quieres optimizar las membresías de entrada y descarga el **PDF** del reporte (requiere `reportlab` y `Pillow`, ya listados en `requirements.txt`).
-- Pestaña **Cultivo**: visualización ligada a los mismos valores del panel.
+Abre [localhost:8501](http://localhost:8501). Ajusta las cuatro entradas en **Panel de Control**, revisa la duración estimada y compara con la optimización si quieres evaluar otra configuración. La pestaña **Cultivo** usa los mismos valores.
 
-## Estructura del proyecto
+## Estructura
 
-| Ruta        | Descripción                                      |
-| ----------- | ------------------------------------------------ |
-| `main.py`   | Punto de entrada; lanza la interfaz Streamlit    |
-| `ui/`       | Interfaz (`interfaz.py`, `cultivo.py`)             |
-| `logica/`   | Difuso, AG, simulación, PDF                      |
-| `requirements.txt` | Dependencias de Python                    |
+- [`main.py`](main.py) inicia Streamlit.
+- [`ui/`](ui) contiene el panel de control y la vista del cultivo.
+- [`logica/fuzzy/`](logica/fuzzy) reúne reglas, inferencia y funciones de pertenencia.
+- [`logica/genetico/`](logica/genetico) contiene el algoritmo, su evaluación y los operadores.
+- [`logica/`](logica) coordina la simulación y genera el PDF.
 
-## Notas
+## Comprobación del modelo
 
-- Si `pip install` falla, comprueba que usas el mismo `python` / `pip` con el que ejecutarás Streamlit.
-- No subas secretos: si creas `.streamlit/secrets.toml`, está ignorado en `.gitignore`.
+[`_test_ag.py`](_test_ag.py) compara el resultado base, la propuesta y el resultado final para varios escenarios. Ejecútalo con el mismo intérprete que usaste para instalar las dependencias.
+
+```bash
+python _test_ag.py
+```
+
+## Capturas
+
+<p align="center">
+  <a href="./docs/assets/capturas/riego.png"><img src="./docs/assets/capturas/riego.png" alt="Panel de control y funciones de pertenencia" width="820"></a><br><strong>Panel de control y funciones de pertenencia</strong>
+</p>
+
+<table width="100%">
+  <tr>
+    <td width="50%" valign="top" align="center">
+      <a href="./docs/assets/capturas/riego-resultado.png"><img src="./docs/assets/capturas/riego-resultado.png" alt="Resultado de la simulación" width="410"></a><br><sub>Resultado de la simulación</sub>
+    </td>
+    <td width="50%" valign="top" align="center">
+      <a href="./docs/assets/capturas/riego-cultivo.png"><img src="./docs/assets/capturas/riego-cultivo.png" alt="Visualización del cultivo" width="410"></a><br><sub>Visualización del cultivo</sub>
+    </td>
+  </tr>
+</table>
